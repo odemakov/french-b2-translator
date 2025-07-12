@@ -33,8 +33,13 @@ Add to your Claude Desktop configuration file:
 {
   "mcpServers": {
     "french-b2-translator": {
-      "command": "python",
-      "args": ["/path/to/french_b2_mcp.py"],
+      "command": "/Users/pupkin/.local/bin/uv",
+      "args": [
+        "--directory",
+        "/Users/pupkin/src/french-b2-translator",
+        "run",
+        "french_b2_mcp.py"
+      ],
       "env": {}
     }
   }
@@ -96,18 +101,9 @@ The translator ensures:
 - Clear sentence structure with appropriate connectors
 - Natural but accessible French expression
 
-## Development
-
-To extend the server:
-
-1. Add new translation patterns in `simplifications` dictionary
-2. Enhance grammar analysis in `_get_grammar_notes()`
-3. Expand vocabulary alternatives in `get_b2_alternative`
-4. Add new tools by implementing additional handlers
-
 ## Troubleshooting
 
 - Ensure Python path is correct in configuration
-- Check that `words.json` exists and is readable
-- Verify MCP server is properly registered in Claude Desktop
-- Restart Claude Desktop after configuration changes
+- Check that `words.txt` exists and is readable
+- Verify MCP server is properly registered in AI tool
+- Restart AI tool after configuration changes
