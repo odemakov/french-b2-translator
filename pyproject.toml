@@ -1,0 +1,9 @@
+[project]
+name = "french-b2-translator"
+version = "0.1.0"
+description = "Simplify or translate any text to proper French B2 level"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.2.0",
+]
