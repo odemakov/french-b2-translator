@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-French B2 Translation Assistant MCP Server
-Provides a simple translation tool that internally uses AI with optimized prompts
+French B2 Simplifier Assistant MCP Server
+Simplifies text to French B2 level and enforces B2 vocabulary compliance
 """
 
 import asyncio
@@ -15,18 +15,10 @@ from mcp.server.models import InitializationOptions
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("french-b2-translator")
+logger = logging.getLogger("french-b2-simplifier")
 
-# Add after your existing imports
-try:
-    import spacy
-    nlp = spacy.load("fr_core_news_sm")
-    HAS_SPACY = True
-except (ImportError, OSError):
-    # uv pip install fr_core_news_sm@https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl
-    logger.warning("spaCy not available")
-    HAS_SPACY = False
-    nlp = None
+import spacy
+nlp = spacy.load("fr_core_news_sm")
 
 
 def load_b2_vocabulary(vocab_file: str = "words.txt") -> tuple[set, set]:
@@ -36,32 +28,25 @@ def load_b2_vocabulary(vocab_file: str = "words.txt") -> tuple[set, set]:
             original_vocab = {line.strip().lower() for line in f if line.strip()}
 
             # Create normalized version if spaCy is available
-            if HAS_SPACY and nlp:
-                normalized_vocab = set()
-                for word in original_vocab:
-                    doc = nlp(word)
-                    if doc:
-                        normalized_vocab.add(doc[0].lemma_.lower())
-                return original_vocab, normalized_vocab
-            return original_vocab, original_vocab
+            normalized_vocab = set()
+            for word in original_vocab:
+                doc = nlp(word)
+                if doc:
+                    normalized_vocab.add(doc[0].lemma_.lower())
+            return original_vocab, normalized_vocab
     except FileNotFoundError:
         logger.warning(f"Vocabulary file {vocab_file} not found.")
         return set(), set()
 
 
-class FrenchB2Translator:
-    """French B2 Translation Assistant"""
+class FrenchB2Simplifier:
+    """French B2 Simplifier Assistant"""
 
     def __init__(self):
         self.original_vocab, self.normalized_vocab = load_b2_vocabulary()
 
     def normalize_french_words(self, text: str) -> set:
         """Extract normalized French words from text"""
-        if not HAS_SPACY or not nlp:
-            # Fallback to simple tokenization
-            words = re.findall(r'\b[a-zA-ZàâäéèêëïîôöùûüÿçÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇ]+\b', text.lower())
-            return set(words)
-
         doc = nlp(text)
         normalized_words = set()
 
@@ -74,7 +59,7 @@ class FrenchB2Translator:
         return normalized_words
 
     def validate_vocabulary(self, french_text: str) -> dict:
-        """Check if translation uses only B2 vocabulary"""
+        """Check if text uses only B2 vocabulary"""
         normalized_words = self.normalize_french_words(french_text)
 
         violations = []
@@ -116,7 +101,7 @@ The following words are NOT in the B2 vocabulary list:
             report += f"""
 ## Recommendations
 1. Replace the violated words with simpler B2 alternatives
-2. Use the translation tool to get a B2-compliant version
+2. Use the simplifier tool to get a B2-compliant version
 3. Check if any violations are proper nouns that can be kept as-is
 """
         else:
@@ -126,107 +111,48 @@ All words in this text are within the B2 vocabulary constraints.
 
         return report
 
-    def create_translation_prompt(self, text: str) -> str:
-        """Create optimized prompt for B2 translation with markdown output"""
+    def get_b2_replacement_suggestions(self, non_b2_words: list) -> dict:
+        """Get suggestions for replacing non-B2 words with B2 alternatives"""
+        suggestions = {}
 
-        # Use original vocabulary for display (more readable than lemmatized forms)
-        vocab_sample = list(self.original_vocab) if self.original_vocab else []
-        vocab_info = (
-            f"Available B2 vocabulary includes words: {', '.join(vocab_sample[:50])}..."
-            if vocab_sample
-            else ""
-        )
+        for word in non_b2_words:
+            # Generic instruction for all non-B2 words
+            suggestions[word] = f"[find B2 equivalent for '{word}']"
 
-        prompt = f"""You are an experienced French teacher helping students translate texts to French B2 level.
+        return suggestions
 
-**Text to translate:**
-{text}
+    def create_b2_compliant_text(self, text: str) -> str:
+        """Create instructions for B2-compliant text with vocabulary enforcement"""
 
-**Your task:** Translate this to French B2 level and output a markdown file with B2 grammar highlighting.
+        return f"""SIMPLIFY this French text to B2 level:
 
-**Vocabulary Constraints:**
-- Use ONLY words from the 5000 most common French words (B2 level)
-- If you need a complex concept, use simpler synonyms or explanatory phrases
-- Prioritize everyday, concrete vocabulary over specialized terms
-{vocab_info}
+Text: "{text}"
 
-**Grammar Requirements (B2 Level):**
-- Essential tenses: présent, passé composé, imparfait, futur simple, conditionnel
-- Use subjunctive only after clear trigger expressions (emotion, doubt, necessity)
-- Complex relative pronouns (dont, où, lequel) but keep structure clear
-- Varied sentence connectors: parce que, bien que, pour que, afin que
+Instructions:
+1. Simplify to B2 level French (use only common vocabulary and grammar)
+2. Keep the meaning but use simpler words and structures
+3. Use only words from the 5000 most common French words
+4. Provide ONLY the simplified French text as output"""
 
-**CRITICAL OUTPUT FORMAT - You must output EXACTLY this markdown structure:**
-
-```markdown
-# French B2 Translation
-
-## Translation
-
-[Your French B2 translation here, with B2 grammar elements marked in bold like **[passé composé]**, **[imparfait]**, **[subjonctif]**, **[relative pronoun]**, **[conditionnel]**, etc.]
-
----
-
-## Simplifications Made
-
-- **Original:** [complex word/phrase] → **B2 Version:** [simpler alternative]
-  **Reason:** [why the change was necessary for B2 level]
-
-## Grammar Clarifications
-
-### Passé Composé
-[Explain any passé composé usage in the translation, if present]
-
-### Imparfait
-[Explain any imparfait usage in the translation, if present]
-
-### Subjonctif
-[Explain any subjunctive usage in the translation, if present]
-
-### Relative Pronouns
-[Explain any complex relative pronouns (dont, où, lequel) usage, if present]
-
-### Conditionnel
-[Explain any conditional usage in the translation, if present]
-
-### Other B2 Grammar
-[Any other B2-level grammar points used in the translation]
-
-## Vocabulary Notes
-
-- **[word]:** [simple definition in French] - [usage context]
-- **[word]:** [simple definition in French] - [usage context]
-
-## Learning Tips
-
-[Brief tips about the B2 grammar structures used in this translation]
-```
-
-**IMPORTANT RULES:**
-1. In the translation section, mark ALL B2 grammar with bold brackets
-2. Only include clarification sections for grammar actually used in the translation
-3. Never ask clarifying questions - always translate/simplify as requested
-4. If text is already French: simplify it to B2 level
-5. If text is another language: translate it to French B2 level
-6. Output the complete markdown file ready to save as .md artifact
-7. STRICTLY use only B2 vocabulary - this is MANDATORY
-"""
-
-        return prompt
-
-    async def translate_with_ai(self, text: str) -> str:
+    def simplify_to_b2(self, text: str) -> str:
         """
-        This would normally make an API call to an AI service
-        For MCP, we return the optimized prompt that should be sent to the AI
+        Main function to simplify text to B2 level with vocabulary enforcement
         """
-        return self.create_translation_prompt(text)
+        # Create initial simplification instruction
+        instruction = self.create_b2_compliant_text(text)
+
+        return f"""{instruction}
+
+IMPORTANT: After providing your simplification, I will check it against the B2 vocabulary list and suggest replacements for any non-B2 words.
+
+B2 vocabulary includes {len(self.original_vocab)} common French words."""
 
 
-# Initialize the translator
-translator = FrenchB2Translator()
+# Initialize the sSimplifier
+simplifier = FrenchB2Simplifier()
 
 # Create the MCP server
-server = Server("french-b2-translator")
+server = Server("french-b2-simplifier")
 
 
 @server.list_tools()
@@ -234,14 +160,14 @@ async def handle_list_tools() -> list[types.Tool]:
     """List available tools"""
     return [
         types.Tool(
-            name="translate_to_french_b2",
-            description="Translate any text to French B2 level with explanations for difficult parts",
+            name="simplify_to_french_b2_instructions",
+            description="Simplify French text to French B2 level using only 5000 most used french words",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "text": {
                         "type": "string",
-                        "description": "Text to translate to French B2 level (can be English, Russian, French, or any language)",
+                        "description": "Text to simplify",
                     }
                 },
                 "required": ["text"],
@@ -249,13 +175,27 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="validate_b2_vocabulary",
-            description="Check if French text uses only B2 vocabulary words and get detailed report",
+            description="Check if French text uses only B2 vocabulary and get replacement suggestions for non-B2 words",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "french_text": {
                         "type": "string",
                         "description": "French text to validate against B2 vocabulary",
+                    }
+                },
+                "required": ["french_text"],
+            },
+        ),
+        types.Tool(
+            name="fix_b2_vocabulary",
+            description="Replace non-B2 words in French text with B2 alternatives",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "french_text": {
+                        "type": "string",
+                        "description": "French text with potential non-B2 vocabulary to fix",
                     }
                 },
                 "required": ["french_text"],
@@ -270,35 +210,16 @@ async def handle_call_tool(
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool calls"""
 
-    if name == "translate_to_french_b2":
+    if name == "simplify_to_french_b2_instructions":
         text = arguments.get("text", "")
 
         if not text.strip():
             return [
-                types.TextContent(type="text", text="Please provide text to translate.")
+                types.TextContent(type="text", text="Please provide text to simplify.")
             ]
 
-        # Generate the optimized prompt
-        prompt = translator.create_translation_prompt(text)
-
-        # Return the prompt that will generate the markdown artifact
-        response = f"""Here's the optimized prompt for French B2 translation with markdown output:
-
-{prompt}
-
----
-
-**This prompt will generate a complete markdown file (.md) with:**
-- French B2 translation with **bold grammar highlighting**
-- Detailed explanations of B2 grammar used
-- Vocabulary notes for difficult words
-- Learning tips for B2 students
-
-**The output will be a ready-to-save .md artifact with proper formatting.**
-
-**Vocabulary Status:**
-- Loaded {len(translator.original_vocab)} B2 vocabulary words
-- Normalization: {'spaCy enabled' if HAS_SPACY else 'Basic tokenization fallback'}"""
+        # Generate B2 simplification instruction
+        response = simplifier.simplify_to_b2(text)
 
         return [types.TextContent(type="text", text=response)]
 
@@ -310,10 +231,50 @@ async def handle_call_tool(
                 types.TextContent(type="text", text="Please provide French text to validate.")
             ]
 
-        # Generate validation report
-        report = translator.create_validation_report(french_text)
+        # Generate validation report with suggestions
+        validation = simplifier.validate_vocabulary(french_text)
+        report = simplifier.create_validation_report(french_text)
+
+        if validation['violations']:
+            suggestions = simplifier.get_b2_replacement_suggestions(validation['violations'])
+            report += f"\n## Suggested B2 Replacements\n\n"
+            for word, replacement in suggestions.items():
+                report += f"- **{word}** -> **{replacement}**\n"
 
         return [types.TextContent(type="text", text=report)]
+
+    elif name == "fix_b2_vocabulary":
+        french_text = arguments.get("french_text", "")
+
+        if not french_text.strip():
+            return [
+                types.TextContent(type="text", text="Please provide French text to fix.")
+            ]
+
+        # Find non-B2 words and suggest replacements
+        validation = simplifier.validate_vocabulary(french_text)
+
+        if not validation['violations']:
+            return [types.TextContent(type="text", text=f"PASSED: Text is already B2-compliant!\n\n**Text:** {french_text}")]
+
+        suggestions = simplifier.get_b2_replacement_suggestions(validation['violations'])
+
+        response = f"""**B2 Vocabulary Fixes Needed**
+
+**Original text:** {french_text}
+
+**Non-B2 words found:** {len(validation['violations'])} words
+
+**Suggested replacements:**
+"""
+        for word, replacement in suggestions.items():
+            response += f"\n- **{word}** -> **{replacement}**"
+
+        response += f"""
+
+**Instructions:** Please rewrite the text using these B2 replacements to make it fully B2-compliant."""
+
+        return [types.TextContent(type="text", text=response)]
 
     else:
         raise ValueError(f"Unknown tool: {name}")
@@ -327,7 +288,7 @@ async def main():
             read_stream,
             write_stream,
             InitializationOptions(
-                server_name="french-b2-translator",
+                server_name="french-b2-simplifier",
                 server_version="1.0.0",
                 capabilities=server.get_capabilities(
                     notification_options=NotificationOptions(),

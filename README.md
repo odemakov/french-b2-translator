@@ -1,6 +1,6 @@
-# French B2 Prompt Generator MCP Server
+# French B2 Vocabulary Enforcer MCP Server
 
-A Model Context Protocol (MCP) server that generates optimized prompts for AI translation to French B2 level. Instead of doing translation itself, it creates detailed prompts that help AI systems produce better B2-level French translations.
+A Model Context Protocol (MCP) server that simplifies French text to French B2 level. It enforces strict B2 vocabulary compliance by checking against a 5000-word vocabulary list and providing replacement suggestions for non-B2 words.
 
 ## Installation
 
@@ -32,11 +32,11 @@ Add to your Claude Desktop configuration file:
 ```json
 {
   "mcpServers": {
-    "french-b2-translator": {
+    "french-b2-simplifier": {
       "command": "/Users/pupkin/.local/bin/uv",
       "args": [
         "--directory",
-        "/Users/pupkin/src/french-b2-translator",
+        "/Users/pupkin/src/french-b2-simplifier",
         "run",
         "french_b2_mcp.py"
       ],
@@ -48,58 +48,95 @@ Add to your Claude Desktop configuration file:
 
 ## Available Tools
 
-### `translate_to_french_b2`
-Simple tool that translates any text to French B2 level with explanations.
+### `simplify_to_french_b2_instructions`
+Generates instructions for simplifying French text to B2 level using only vocabulary from the B2 word list.
 
 **Parameters:**
-- `text` (required): Text to translate (any language)
+- `text` (required): French text to simplify
 
 **Output:**
-- French B2 translation
-- Simplifications made (complex → simple words)
-- Grammar teaching points for B2 learners
-- Explanations for difficult vocabulary
+Clear instructions for B2-compliant simplification that ensures only B2 vocabulary is used.
+
+### `validate_b2_vocabulary`
+Checks if French text uses only B2 vocabulary and provides replacement suggestions for non-B2 words.
+
+**Parameters:**
+- `french_text` (required): French text to validate
+
+**Output:**
+- Detailed validation report
+- List of non-B2 words found
+- Suggested B2 replacements
+
+### `fix_b2_vocabulary`
+Identifies non-B2 words and provides specific B2 alternatives for replacement.
+
+**Parameters:**
+- `french_text` (required): French text with potential non-B2 vocabulary
+
+**Output:**
+- List of non-B2 words with suggested B2 replacements
+- Instructions for creating B2-compliant text
 
 ## Usage Examples
 
-### Simple Translation
+### Simplifying French Text
 ```
 User input: "Dans cet apaisement du soleil absent, toutes les senteurs de la terre se répandaient."
 
-Tool: translate_to_french_b2
+Tool: simplify_to_french_b2_instructions
+Output: Instructions to simplify using only B2 vocabulary
+
+Then use: validate_b2_vocabulary
+Output: Identifies "apaisement" and "senteurs" as non-B2 words
+
+Then use: fix_b2_vocabulary
 Output:
-- French B2 Translation: "Dans le calme du soir sans soleil, toutes les odeurs de la terre se répandaient."
-- Simplifications: apaisement → calme, senteurs → odeurs
-- Grammar Points: imparfait used for ongoing description
-- Difficult Words: répandaient - to spread out, scatter
+- apaisement -> [find B2 equivalent for 'apaisement']
+- senteurs -> [find B2 equivalent for 'senteurs']
 ```
 
-### From Any Language
-```
-User input: "The stars were shining brightly in the clear night sky."
-
-Tool: translate_to_french_b2
-Output:
-- French B2 Translation: "Les étoiles brillaient fort dans le ciel clair de la nuit."
-- Grammar Points: imparfait for ongoing past action
-- Vocabulary: All words within B2 level
-```
+### Vocabulary Enforcement Workflow
+1. Use `simplify_to_french_b2_instructions` to get B2 simplification instructions
+2. Apply the simplification to create B2-level text
+3. Use `validate_b2_vocabulary` to check compliance
+4. Use `fix_b2_vocabulary` to get specific replacements for non-B2 words
+5. Revise text using suggested B2 alternatives
 
 ## Features
 
-- **Prompt Generation**: Creates optimized prompts for AI translation tasks
-- **B2 Guidelines**: Provides comprehensive French B2 level constraints
-- **Multiple Prompt Types**: Translation, vocabulary analysis, simplification
-- **Educational Focus**: Designed for B2 language learning
-- **Context Awareness**: Incorporates specific translation contexts
+- **Vocabulary Enforcement**: Strict checking against 5000-word B2 vocabulary list
+- **Non-B2 Word Detection**: Identifies words not in the B2 vocabulary
+- **Practical Workflow**: Three-step process for guaranteed B2 compliance
+- **Real Validation**: Uses actual word list checking, not just guidelines
+- **Generic Replacement Instructions**: Provides clear guidance for finding B2 alternatives
+- **spaCy Integration**: Optional advanced text processing with French language model
 
-## B2 Level Focus
+## B2 Vocabulary Compliance
 
-The translator ensures:
-- Essential tenses: présent, passé composé, imparfait, futur simple
-- Intermediate grammar: subjunctive, relative pronouns, passive voice
-- Clear sentence structure with appropriate connectors
-- Natural but accessible French expression
+The tool ensures:
+- **Only B2 words**: Every word checked against the 5000-word vocabulary list
+- **Automatic detection**: Identifies non-B2 words requiring replacement
+- **Clear instructions**: Provides guidance for finding appropriate B2 alternatives
+- **Practical output**: Text that B2 learners can actually understand
+
+## Algorithm
+1. **Input**: French text to simplify
+2. **Simplify**: Generate B2-level French using clear instructions
+3. **Validate**: Check each word against `words.txt` vocabulary list
+4. **Replace**: Suggest B2 alternatives for any non-compliant words
+5. **Output**: Text using only B2 vocabulary
+
+## Optional spaCy Integration
+
+For enhanced text processing, you can install spaCy with French language model:
+
+```bash
+pip install spacy
+python -m spacy download fr_core_news_sm
+```
+
+This enables more accurate word normalization and lemmatization.
 
 ## Troubleshooting
 
@@ -107,3 +144,4 @@ The translator ensures:
 - Check that `words.txt` exists and is readable
 - Verify MCP server is properly registered in AI tool
 - Restart AI tool after configuration changes
+- For spaCy issues, ensure French model is properly installed

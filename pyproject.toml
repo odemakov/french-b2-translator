@@ -1,9 +1,10 @@
 [project]
-name = "french-b2-translator"
+name = "french-b2-simplifier"
 version = "0.1.0"
-description = "Simplify any french text or translate any other text to proper French B2 level"
+description = "Enforce B2 vocabulary compliance by simplifying French text to B2 level with strict word list checking"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "mcp[cli]>=1.2.0",
+    "spacy>=3.7.0",
 ]
