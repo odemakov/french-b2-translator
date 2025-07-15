@@ -1,0 +1,8 @@
+# Writing Rules
+
+- Ask follow-up questions when you don't understand something
+- Propose solutions when you have ideas, do not immediately start to implement them
+- Do not use any emoji in the code, docs or any text
+- Write clear and concise code
+- Use proper indentation and formatting
+- Use python 3.10 with type hints
