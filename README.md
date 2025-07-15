@@ -1,6 +1,6 @@
-# French B2 Vocabulary Enforcer MCP Server
+# French B2 Simplifier MCP Server
 
-A Model Context Protocol (MCP) server that simplifies French text to French B2 level. It enforces strict B2 vocabulary compliance by checking against a 5000-word vocabulary list and providing replacement suggestions for non-B2 words.
+A Model Context Protocol (MCP) server that analyzes French text for B2 level compliance and provides comprehensive simplification guidance. It enforces strict B2 vocabulary compliance by checking against a 5000-word vocabulary list, identifies words requiring replacement, and includes B2 grammar requirements in a well-formatted Markdown report.
 
 ## Installation
 
@@ -48,84 +48,95 @@ Add to your Claude Desktop configuration file:
 
 ## Available Tools
 
-### `simplify_to_french_b2_instructions`
-Generates instructions for simplifying French text to B2 level using only vocabulary from the B2 word list.
+### `simplify_to_french_b2`
+Analyzes French text for B2 compliance and provides comprehensive simplification guidance in Markdown format.
 
 **Parameters:**
-- `text` (required): French text to simplify
+- `text` (required): French text to analyze for B2 compliance
 
 **Output:**
-Clear instructions for B2-compliant simplification that ensures only B2 vocabulary is used.
+- **Markdown-formatted report** with proper structure and formatting
+- **Vocabulary compliance analysis** with coverage statistics
+- **List of words requiring replacement** (original → [find B2 equivalent])
+- **B2 Level Grammar Requirements** including essential tenses and advanced grammar
+- **Comprehensive simplification guidelines** for vocabulary and grammar
+- **Clear instructions** for creating B2-compliant text
 
-### `validate_b2_vocabulary`
-Checks if French text uses only B2 vocabulary and provides replacement suggestions for non-B2 words.
-
-**Parameters:**
-- `french_text` (required): French text to validate
-
-**Output:**
-- Detailed validation report
-- List of non-B2 words found
-- Suggested B2 replacements
-
-### `fix_b2_vocabulary`
-Identifies non-B2 words and provides specific B2 alternatives for replacement.
-
-**Parameters:**
-- `french_text` (required): French text with potential non-B2 vocabulary
-
-**Output:**
-- List of non-B2 words with suggested B2 replacements
-- Instructions for creating B2-compliant text
+**Key Features:**
+- Proper `.md` format output
+- Shows specific words that need replacement
+- Includes complete B2 grammar requirements
+- No hardcoded replacements - dynamic analysis only
+- Detailed compliance statistics and coverage analysis
 
 ## Usage Examples
 
-### Simplifying French Text
-```
-User input: "Dans cet apaisement du soleil absent, toutes les senteurs de la terre se répandaient."
+### Example 1: Text Requiring Simplification
+**Input:** "Dans cet apaisement du soleil absent, toutes les senteurs de la terre se répandaient."
 
-Tool: simplify_to_french_b2_instructions
-Output: Instructions to simplify using only B2 vocabulary
+**Tool:** `simplify_to_french_b2`
 
-Then use: validate_b2_vocabulary
-Output: Identifies "apaisement" and "senteurs" as non-B2 words
+**Output:** Complete Markdown report including:
+- NEEDS SIMPLIFICATION status
+- 66.7% B2 vocabulary coverage
+- 2 words requiring replacement: `apaisement` → [find B2 equivalent], `senteurs` → [find B2 equivalent]
+- Full B2 Grammar Requirements section
+- Comprehensive simplification guidelines
 
-Then use: fix_b2_vocabulary
-Output:
-- apaisement -> [find B2 equivalent for 'apaisement']
-- senteurs -> [find B2 equivalent for 'senteurs']
-```
+### Example 2: B2-Compliant Text
+**Input:** "Je vais au marché pour acheter du pain et des fruits."
 
-### Vocabulary Enforcement Workflow
-1. Use `simplify_to_french_b2_instructions` to get B2 simplification instructions
-2. Apply the simplification to create B2-level text
-3. Use `validate_b2_vocabulary` to check compliance
-4. Use `fix_b2_vocabulary` to get specific replacements for non-B2 words
-5. Revise text using suggested B2 alternatives
+**Tool:** `simplify_to_french_b2`
+
+**Output:** Complete Markdown report showing:
+- COMPLIANT status
+- 100.0% B2 vocabulary coverage
+- No words need replacement
+- B2 Grammar Requirements for reference
+- Guidelines for maintaining B2 compliance
+
+### Workflow
+1. Run `simplify_to_french_b2` with your French text
+2. Review the Markdown-formatted analysis report
+3. Follow the specific word replacement suggestions
+4. Apply B2 grammar requirements as needed
+5. Verify compliance with the comprehensive guidelines provided
 
 ## Features
 
+- **Markdown Output**: All reports formatted as proper `.md` with clear structure
+- **Word Replacement Tracking**: Shows exactly which words need B2 alternatives
+- **B2 Grammar Requirements**: Includes complete grammar guidelines in every report
+- **Detailed Analytics**: Coverage statistics, compliance status, and word counts
+- **Dynamic Analysis**: No hardcoded replacements - analyzes each text individually
 - **Vocabulary Enforcement**: Strict checking against 5000-word B2 vocabulary list
-- **Non-B2 Word Detection**: Identifies words not in the B2 vocabulary
-- **Practical Workflow**: Three-step process for guaranteed B2 compliance
-- **Real Validation**: Uses actual word list checking, not just guidelines
-- **Generic Replacement Instructions**: Provides clear guidance for finding B2 alternatives
-- **spaCy Integration**: Optional advanced text processing with French language model
+- **Precise Detection**: Identifies specific words not in B2 vocabulary using lemmatization
+- **spaCy Integration**: Advanced French text processing for accurate analysis
+- **Comprehensive Guidelines**: Complete simplification instructions for vocabulary and grammar
 
-## B2 Vocabulary Compliance
+## Enhanced B2 Compliance Features
 
-The tool ensures:
-- **Only B2 words**: Every word checked against the 5000-word vocabulary list
-- **Automatic detection**: Identifies non-B2 words requiring replacement
-- **Clear instructions**: Provides guidance for finding appropriate B2 alternatives
-- **Practical output**: Text that B2 learners can actually understand
+The tool provides:
+- **Markdown Reports**: Structured, readable output in `.md` format
+- **Word Replacement Lists**: Specific words needing B2 alternatives (e.g., `apaisement` → [find B2 equivalent])
+- **Grammar Requirements**: Complete B2 grammar guidelines included in every report
+- **Compliance Analytics**: Coverage percentages, word counts, and status indicators
+- **Zero Hardcoded Replacements**: Dynamic analysis based on actual vocabulary checking
+- **Comprehensive Validation**: Every word checked against 5000-word B2 vocabulary
+- **Lemmatization Support**: Accurate word form recognition using spaCy
+- **Educational Content**: B2 grammar requirements for learning reference
 
-## Algorithm
-1. **Input**: French text to simplify
-2. **Simplify**: Generate B2-level French using clear instructions
-3. **Validate**: Check each word against `words.txt` vocabulary list
-4. **Replace**: Suggest B2 alternatives for any non-compliant words
-5. **Output**: Text using only B2 vocabulary
+## Enhanced Algorithm
+1. **Input**: French text for B2 analysis
+2. **Vocabulary Analysis**: Check each word against 5000-word B2 vocabulary using lemmatization
+3. **Compliance Report**: Generate detailed Markdown report with:
+   - Original text display
+   - Coverage statistics and compliance status
+   - Specific words requiring replacement (no hardcoded suggestions)
+   - Complete B2 Grammar Requirements section
+   - Comprehensive simplification guidelines
+4. **Output**: Well-structured `.md` report with actionable guidance
+5. **Result**: Clear roadmap for achieving B2 compliance with specific word targets
 
 ## Optional spaCy Integration
 
