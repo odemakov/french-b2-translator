@@ -65,7 +65,7 @@ class FrenchB2Simplifier:
     def validate_vocabulary(self, french_text: str) -> dict:
         """Check if text uses only B2 vocabulary by comparing lemmas"""
         doc = nlp(french_text)
-        violations = []
+        violations = set()
         all_words = set()
 
         for token in doc:
@@ -76,11 +76,11 @@ class FrenchB2Simplifier:
 
                 # Check if lemmatized word is in our lemmatized vocabulary
                 if lemma_word not in self.b2_vocab:
-                    violations.append(original_word)
+                    violations.add(original_word)
 
         return {
             'is_valid': len(violations) == 0,
-            'violations': violations,
+            'violations': list(violations),
             'total_unique_words': len(all_words),
             'coverage': (len(all_words) - len(violations)) / len(all_words) * 100 if all_words else 0
         }
