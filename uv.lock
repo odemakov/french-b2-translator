@@ -216,19 +216,14 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "mcp", extra = ["cli"] },
-]
-
-[package.optional-dependencies]
-spacy = [
     { name = "spacy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.2.0" },
-    { name = "spacy", marker = "extra == 'spacy'", specifier = ">=3.7.0" },
+    { name = "spacy", specifier = ">=3.7.0" },
 ]
-provides-extras = ["spacy"]
 
 [[package]]
 name = "h11"

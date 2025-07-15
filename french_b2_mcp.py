@@ -121,31 +121,57 @@ All words in this text are within the B2 vocabulary constraints.
 
         return suggestions
 
-    def create_b2_compliant_text(self, text: str) -> str:
-        """Create instructions for B2-compliant text with vocabulary enforcement"""
-
-        return f"""SIMPLIFY this French text to B2 level:
-
-Text: "{text}"
-
-Instructions:
-1. Simplify to B2 level French (use only common vocabulary and grammar)
-2. Keep the meaning but use simpler words and structures
-3. Use only words from the 5000 most common French words
-4. Provide ONLY the simplified French text as output"""
-
     def simplify_to_b2(self, text: str) -> str:
         """
-        Main function to simplify text to B2 level with vocabulary enforcement
+        Main function to simplify text to B2 level with comprehensive analysis
         """
-        # Create initial simplification instruction
-        instruction = self.create_b2_compliant_text(text)
+        # First, validate the original text
+        validation = self.validate_vocabulary(text)
 
-        return f"""{instruction}
+        # Build comprehensive response
+        response = f"""# French B2 Text Simplification
 
-IMPORTANT: After providing your simplification, I will check it against the B2 vocabulary list and suggest replacements for any non-B2 words.
+## Original Text Analysis
+**Text:** {text}
 
-B2 vocabulary includes {len(self.original_vocab)} common French words."""
+**B2 Vocabulary Status:** {'COMPLIANT' if validation['is_valid'] else 'NEEDS SIMPLIFICATION'}
+- **Unique words:** {validation['total_unique_words']}
+- **B2 coverage:** {validation['coverage']:.1f}%"""
+
+        if validation['violations']:
+            response += f"""
+- **Non-B2 words:** {len(validation['violations'])} words need replacement
+
+### Words to Replace:
+"""
+            for word in sorted(validation['violations']):
+                response += f"- **{word}** (find B2 alternative)\n"
+
+        response += f"""
+
+## Simplification Instructions
+
+Please SIMPLIFY this French text to B2 level:
+
+**Text to simplify:** "{text}"
+
+**Requirements:**
+1. Use only B2-level vocabulary (5000 most common French words)
+2. Simplify grammar structures while keeping the original meaning
+3. Replace complex words with simpler alternatives
+4. Ensure the text flows naturally in French"""
+
+        if validation['violations']:
+            response += f"""
+5. **Priority replacements needed for:** {', '.join(sorted(validation['violations']))}"""
+
+        response += f"""
+
+**B2 Vocabulary Reference:** This server validates against {len(self.original_vocab)} approved B2 French words.
+
+**Output:** Provide ONLY the simplified French text."""
+
+        return response
 
 
 # Initialize the sSimplifier
@@ -160,45 +186,17 @@ async def handle_list_tools() -> list[types.Tool]:
     """List available tools"""
     return [
         types.Tool(
-            name="simplify_to_french_b2_instructions",
-            description="Simplify French text to French B2 level using only 5000 most used french words",
+            name="simplify_to_french_b2",
+            description="Simplify French text to B2 level with automatic vocabulary validation and comprehensive guidance",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "text": {
                         "type": "string",
-                        "description": "Text to simplify",
+                        "description": "French text to simplify to B2 level",
                     }
                 },
                 "required": ["text"],
-            },
-        ),
-        types.Tool(
-            name="validate_b2_vocabulary",
-            description="Check if French text uses only B2 vocabulary and get replacement suggestions for non-B2 words",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "french_text": {
-                        "type": "string",
-                        "description": "French text to validate against B2 vocabulary",
-                    }
-                },
-                "required": ["french_text"],
-            },
-        ),
-        types.Tool(
-            name="fix_b2_vocabulary",
-            description="Replace non-B2 words in French text with B2 alternatives",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "french_text": {
-                        "type": "string",
-                        "description": "French text with potential non-B2 vocabulary to fix",
-                    }
-                },
-                "required": ["french_text"],
             },
         )
     ]
@@ -210,7 +208,7 @@ async def handle_call_tool(
 ) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Handle tool calls"""
 
-    if name == "simplify_to_french_b2_instructions":
+    if name == "simplify_to_french_b2":
         text = arguments.get("text", "")
 
         if not text.strip():
@@ -218,61 +216,8 @@ async def handle_call_tool(
                 types.TextContent(type="text", text="Please provide text to simplify.")
             ]
 
-        # Generate B2 simplification instruction
+        # Generate comprehensive B2 simplification with internal validation
         response = simplifier.simplify_to_b2(text)
-
-        return [types.TextContent(type="text", text=response)]
-
-    elif name == "validate_b2_vocabulary":
-        french_text = arguments.get("french_text", "")
-
-        if not french_text.strip():
-            return [
-                types.TextContent(type="text", text="Please provide French text to validate.")
-            ]
-
-        # Generate validation report with suggestions
-        validation = simplifier.validate_vocabulary(french_text)
-        report = simplifier.create_validation_report(french_text)
-
-        if validation['violations']:
-            suggestions = simplifier.get_b2_replacement_suggestions(validation['violations'])
-            report += f"\n## Suggested B2 Replacements\n\n"
-            for word, replacement in suggestions.items():
-                report += f"- **{word}** -> **{replacement}**\n"
-
-        return [types.TextContent(type="text", text=report)]
-
-    elif name == "fix_b2_vocabulary":
-        french_text = arguments.get("french_text", "")
-
-        if not french_text.strip():
-            return [
-                types.TextContent(type="text", text="Please provide French text to fix.")
-            ]
-
-        # Find non-B2 words and suggest replacements
-        validation = simplifier.validate_vocabulary(french_text)
-
-        if not validation['violations']:
-            return [types.TextContent(type="text", text=f"PASSED: Text is already B2-compliant!\n\n**Text:** {french_text}")]
-
-        suggestions = simplifier.get_b2_replacement_suggestions(validation['violations'])
-
-        response = f"""**B2 Vocabulary Fixes Needed**
-
-**Original text:** {french_text}
-
-**Non-B2 words found:** {len(validation['violations'])} words
-
-**Suggested replacements:**
-"""
-        for word, replacement in suggestions.items():
-            response += f"\n- **{word}** -> **{replacement}**"
-
-        response += f"""
-
-**Instructions:** Please rewrite the text using these B2 replacements to make it fully B2-compliant."""
 
         return [types.TextContent(type="text", text=response)]
 
