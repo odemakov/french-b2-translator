@@ -6,6 +6,7 @@ Provides a simple translation tool that internally uses AI with optimized prompt
 
 import asyncio
 import logging
+import re
 
 import mcp.server.stdio
 import mcp.types as types
@@ -16,30 +17,122 @@ from mcp.server.models import InitializationOptions
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("french-b2-translator")
 
+# Add after your existing imports
+try:
+    import spacy
+    nlp = spacy.load("fr_core_news_sm")
+    HAS_SPACY = True
+except (ImportError, OSError):
+    # uv pip install fr_core_news_sm@https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.8.0/fr_core_news_sm-3.8.0-py3-none-any.whl
+    logger.warning("spaCy not available")
+    HAS_SPACY = False
+    nlp = None
 
-def load_b2_vocabulary(vocab_file: str = "words.txt") -> set:
+
+def load_b2_vocabulary(vocab_file: str = "words.txt") -> tuple[set, set]:
     """Load the B2 vocabulary list from txt file"""
     try:
         with open(vocab_file, "r", encoding="utf-8") as f:
-            return {line.strip() for line in f if line.strip()}
+            original_vocab = {line.strip().lower() for line in f if line.strip()}
+
+            # Create normalized version if spaCy is available
+            if HAS_SPACY and nlp:
+                normalized_vocab = set()
+                for word in original_vocab:
+                    doc = nlp(word)
+                    if doc:
+                        normalized_vocab.add(doc[0].lemma_.lower())
+                return original_vocab, normalized_vocab
+            return original_vocab, original_vocab
     except FileNotFoundError:
         logger.warning(f"Vocabulary file {vocab_file} not found.")
-        return set()
+        return set(), set()
 
 
 class FrenchB2Translator:
     """French B2 Translation Assistant"""
 
     def __init__(self):
-        self.b2_vocab = load_b2_vocabulary()
+        self.original_vocab, self.normalized_vocab = load_b2_vocabulary()
+
+    def normalize_french_words(self, text: str) -> set:
+        """Extract normalized French words from text"""
+        if not HAS_SPACY or not nlp:
+            # Fallback to simple tokenization
+            words = re.findall(r'\b[a-zA-ZàâäéèêëïîôöùûüÿçÀÂÄÉÈÊËÏÎÔÖÙÛÜŸÇ]+\b', text.lower())
+            return set(words)
+
+        doc = nlp(text)
+        normalized_words = set()
+
+        for token in doc:
+            if token.is_alpha and not token.is_stop:
+                # Use lemma (base form) of the word
+                lemma = token.lemma_.lower()
+                normalized_words.add(lemma)
+
+        return normalized_words
+
+    def validate_vocabulary(self, french_text: str) -> dict:
+        """Check if translation uses only B2 vocabulary"""
+        normalized_words = self.normalize_french_words(french_text)
+
+        violations = []
+        for word in normalized_words:
+            if word not in self.normalized_vocab:
+                violations.append(word)
+
+        return {
+            'is_valid': len(violations) == 0,
+            'violations': violations,
+            'total_unique_words': len(normalized_words),
+            'coverage': (len(normalized_words) - len(violations)) / len(normalized_words) * 100 if normalized_words else 0
+        }
+
+    def create_validation_report(self, french_text: str) -> str:
+        """Create a detailed validation report"""
+        validation = self.validate_vocabulary(french_text)
+
+        report = f"""# B2 Vocabulary Validation Report
+
+## Text Analysis
+- **Total unique words:** {validation['total_unique_words']}
+- **B2 vocabulary coverage:** {validation['coverage']:.1f}%
+- **Validation status:** {'PASSED' if validation['is_valid'] else 'FAILED'}
+
+## Text Analyzed
+{french_text}
+
+"""
+
+        if validation['violations']:
+            report += f"""## Vocabulary Violations ({len(validation['violations'])} words)
+The following words are NOT in the B2 vocabulary list:
+
+"""
+            for word in sorted(validation['violations']):
+                report += f"- **{word}**\n"
+
+            report += f"""
+## Recommendations
+1. Replace the violated words with simpler B2 alternatives
+2. Use the translation tool to get a B2-compliant version
+3. Check if any violations are proper nouns that can be kept as-is
+"""
+        else:
+            report += """## All Clear!
+All words in this text are within the B2 vocabulary constraints.
+"""
+
+        return report
 
     def create_translation_prompt(self, text: str) -> str:
-        """Create optimized prompt for B2 translation"""
+        """Create optimized prompt for B2 translation with markdown output"""
 
-        # Include vocabulary list in prompt for reference
-        vocab_sample = list(self.b2_vocab)[:100] if self.b2_vocab else []
+        # Use original vocabulary for display (more readable than lemmatized forms)
+        vocab_sample = list(self.original_vocab) if self.original_vocab else []
         vocab_info = (
-            f"Available B2 vocabulary includes words like: {', '.join(vocab_sample[:50])}..."
+            f"Available B2 vocabulary includes words: {', '.join(vocab_sample[:50])}..."
             if vocab_sample
             else ""
         )
@@ -49,10 +142,10 @@ class FrenchB2Translator:
 **Text to translate:**
 {text}
 
-**Your task:** Translate this to French B2 level following these specific requirements:
+**Your task:** Translate this to French B2 level and output a markdown file with B2 grammar highlighting.
 
 **Vocabulary Constraints:**
-- Use only words from the 5000 most common French words
+- Use ONLY words from the 5000 most common French words (B2 level)
 - If you need a complex concept, use simpler synonyms or explanatory phrases
 - Prioritize everyday, concrete vocabulary over specialized terms
 {vocab_info}
@@ -63,26 +156,60 @@ class FrenchB2Translator:
 - Complex relative pronouns (dont, où, lequel) but keep structure clear
 - Varied sentence connectors: parce que, bien que, pour que, afin que
 
-**Output Format:**
-1. **French B2 Translation:** [Your complete translation]
+**CRITICAL OUTPUT FORMAT - You must output EXACTLY this markdown structure:**
 
-2. **Simplifications Made:** [List any complex words/phrases you simplified]
-   - Original complex term → Simpler B2 alternative
-   - Brief explanation why the change was needed
+```markdown
+# French B2 Translation
 
-3. **Grammar Teaching Points:** [Highlight B2 grammar used]
-   - Point out specific B2 tenses or structures used
-   - Note any subjunctive or complex grammar for learning
+## Translation
 
-4. **Difficult Words Explained:** [For any remaining challenging vocabulary]
-   - Word: simple definition in French
-   - Usage example in context
+[Your French B2 translation here, with B2 grammar elements marked in bold like **[passé composé]**, **[imparfait]**, **[subjonctif]**, **[relative pronoun]**, **[conditionnel]**, etc.]
 
-**Important:** Maintain the original meaning and style while making it accessible to B2 French learners. Focus on natural, communicative French that students can understand and learn from.
-**Important:** Never ask clarifying questions. Always assume the user wants B2-level French output:**
-- If text is already French: simplify it to B2 level
-- If text is another language: translate it to French B2 level
-- If text is mixed languages: process each part appropriately
+---
+
+## Simplifications Made
+
+- **Original:** [complex word/phrase] → **B2 Version:** [simpler alternative]
+  **Reason:** [why the change was necessary for B2 level]
+
+## Grammar Clarifications
+
+### Passé Composé
+[Explain any passé composé usage in the translation, if present]
+
+### Imparfait
+[Explain any imparfait usage in the translation, if present]
+
+### Subjonctif
+[Explain any subjunctive usage in the translation, if present]
+
+### Relative Pronouns
+[Explain any complex relative pronouns (dont, où, lequel) usage, if present]
+
+### Conditionnel
+[Explain any conditional usage in the translation, if present]
+
+### Other B2 Grammar
+[Any other B2-level grammar points used in the translation]
+
+## Vocabulary Notes
+
+- **[word]:** [simple definition in French] - [usage context]
+- **[word]:** [simple definition in French] - [usage context]
+
+## Learning Tips
+
+[Brief tips about the B2 grammar structures used in this translation]
+```
+
+**IMPORTANT RULES:**
+1. In the translation section, mark ALL B2 grammar with bold brackets
+2. Only include clarification sections for grammar actually used in the translation
+3. Never ask clarifying questions - always translate/simplify as requested
+4. If text is already French: simplify it to B2 level
+5. If text is another language: translate it to French B2 level
+6. Output the complete markdown file ready to save as .md artifact
+7. STRICTLY use only B2 vocabulary - this is MANDATORY
 """
 
         return prompt
@@ -119,6 +246,20 @@ async def handle_list_tools() -> list[types.Tool]:
                 },
                 "required": ["text"],
             },
+        ),
+        types.Tool(
+            name="validate_b2_vocabulary",
+            description="Check if French text uses only B2 vocabulary words and get detailed report",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "french_text": {
+                        "type": "string",
+                        "description": "French text to validate against B2 vocabulary",
+                    }
+                },
+                "required": ["french_text"],
+            },
         )
     ]
 
@@ -140,25 +281,39 @@ async def handle_call_tool(
         # Generate the optimized prompt
         prompt = translator.create_translation_prompt(text)
 
-        # In a real implementation, this would call an AI API
-        # For MCP, we return the prompt that should be processed
-        response = f"""I'll translate this text to French B2 level using the following optimized approach:
+        # Return the prompt that will generate the markdown artifact
+        response = f"""Here's the optimized prompt for French B2 translation with markdown output:
 
 {prompt}
 
 ---
 
-**Please process this prompt to get your B2 French translation with explanations.**
+**This prompt will generate a complete markdown file (.md) with:**
+- French B2 translation with **bold grammar highlighting**
+- Detailed explanations of B2 grammar used
+- Vocabulary notes for difficult words
+- Learning tips for B2 students
 
-The result will include:
-- ✅ French B2 translation using simple vocabulary
-- 📝 List of simplifications made (complex → simple words)
-- 🎓 Grammar teaching points for B2 learners
-- 📚 Explanations for any remaining difficult words
+**The output will be a ready-to-save .md artifact with proper formatting.**
 
-This ensures the translation is perfect for intermediate French students!"""
+**Vocabulary Status:**
+- Loaded {len(translator.original_vocab)} B2 vocabulary words
+- Normalization: {'spaCy enabled' if HAS_SPACY else 'Basic tokenization fallback'}"""
 
         return [types.TextContent(type="text", text=response)]
+
+    elif name == "validate_b2_vocabulary":
+        french_text = arguments.get("french_text", "")
+
+        if not french_text.strip():
+            return [
+                types.TextContent(type="text", text="Please provide French text to validate.")
+            ]
+
+        # Generate validation report
+        report = translator.create_validation_report(french_text)
+
+        return [types.TextContent(type="text", text=report)]
 
     else:
         raise ValueError(f"Unknown tool: {name}")
