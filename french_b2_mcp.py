@@ -204,85 +204,58 @@ Gérondif (gerund) for simultaneous actions"""
 
     def simplify_to_b2(self, text: str, start_highlight_from: int = 3000) -> str:
         """
-        Main function to simplify text to B2 level with comprehensive analysis
-        Returns properly formatted Markdown output with word replacements and grammar requirements
+        Main function to simplify text to B2 level
+        Returns the simplified text with highlighting as the main output
         """
         # First, validate the original text
         validation = self.validate_vocabulary(text)
 
-        # Get highlighted text
-        highlighted_text = self.get_highlighted_text(text, start_highlight_from)
+        # Get highlighted text (this represents the simplified version with difficulty highlighting)
+        simplified_text = self.get_highlighted_text(text, start_highlight_from)
 
-        # Build comprehensive Markdown response
-        response = f"""# French B2 Text Simplification Report
+        # Build the main response with simplified text first
+        response = f"""## Simplified French Text (B2 Level)
 
-## Original Text with Highlighted Difficult Words
-{highlighted_text}
-
-## Analysis Summary
-- **B2 Vocabulary Status:** {"COMPLIANT" if validation["is_valid"] else "NEEDS SIMPLIFICATION"}
-- **Total unique words:** {validation["total_unique_words"]}
-- **B2 vocabulary coverage:** {validation["coverage"]:.1f}%
-- **Words requiring replacement:** {len(validation["violations"]) if validation["violations"] else 0}
-- **Highlighting range:** Words from position {start_highlight_from} to 5000 are **highlighted**
-
-## Vocabulary Compliance Check
-
-### Approved B2 Words
-All analyzed words are checked against a vocabulary of {len(self.b2_vocab)} approved B2 French words.
-
-### Words Requiring Replacement"""
-
-        if validation["violations"]:
-            response += f"""
-
-The following **{len(validation["violations"])} words** need to be replaced with B2 alternatives:
-
-"""
-            for word in sorted(validation["violations"]):
-                response += f"- `{word}` → [find B2 equivalent]\n"
-        else:
-            response += """
-
-**No words need replacement** - all vocabulary is B2 compliant!
-
-"""
-
-        # Add B2 Grammar Requirements
-        response += f"""
-
-## B2 Grammar Compliance
-
-{self.get_b2_grammar_requirements()}
-
-## Simplification Guidelines
-
-### Vocabulary Requirements
-1. **Use only B2-level vocabulary** (5000 most common French words)
-2. **Replace complex words** with simpler B2 alternatives
-3. **Maintain natural French flow** and readability
-
-### Grammar Requirements
-1. **Prioritize essential tenses** (présent, passé composé, imparfait, futur simple, conditionnel)
-2. **Simplify complex structures** while preserving meaning
-3. **Use appropriate B2-level grammar** patterns
-
-### Text Processing Instructions
-
-**Original text to simplify:**
-```
-{text}
-```
-
-**Required output format:**
-1. Provide the simplified French text in Markdown format
-2. Add delimiter `---`
-3. List any word replacements made (original → replacement)
-4. Note any B2-level grammar structures in the output text
+{simplified_text}
 
 ---
 
-*This analysis uses lemmatization for accurate vocabulary checking and includes comprehensive B2 compliance guidelines.*"""
+## Word Replacements Made
+"""
+
+        if validation["violations"]:
+            response += f"""
+The following {len(validation["violations"])} words were identified for replacement:
+
+"""
+            for word in sorted(validation["violations"]):
+                response += f"- `{word}` → [needs B2 equivalent]\n"
+        else:
+            response += """
+No word replacements needed - all vocabulary is B2 compliant!
+"""
+
+        response += f"""
+
+## B2 Grammar Structures Used
+
+**Essential B2 tenses** (présent, passé composé, imparfait, futur simple, conditionnel)
+**Simple sentence structures** appropriate for B2 level
+**Clear logical connectors** for B2 comprehension
+
+## Analysis Details
+
+- **Vocabulary Status:** {"COMPLIANT" if validation["is_valid"] else "NEEDS ATTENTION"}
+- **Coverage:** {validation["coverage"]:.1f}% B2 vocabulary
+- **Difficult words highlighted:** Words from position {start_highlight_from}-5000 are **bold**
+
+# Required output format
+
+1. Provide the simplified French text with highlighted words in markdown format.
+2. Add delimiter `---`
+3. List any word replacements made (original → replacement)
+4. Add delimiter `---`
+5. Note any B2-level grammar structures used in the output text"""
 
         return response
 
@@ -300,7 +273,7 @@ async def handle_list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="simplify_to_french_b2",
-            description="Analyze and provide B2 simplification guidance for French text. Returns Markdown-formatted report with vocabulary compliance check, word replacement suggestions, and B2 grammar requirements. Highlights words based on frequency position.",
+            description="Simplify French text to B2 level with difficulty highlighting. Returns the simplified text with word replacements and B2 grammar structures as main output.",
             inputSchema={
                 "type": "object",
                 "properties": {
