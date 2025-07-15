@@ -6,10 +6,10 @@ Simplifies text to French B2 level and enforces B2 vocabulary compliance
 
 import asyncio
 import logging
-import re
 
 import mcp.server.stdio
 import mcp.types as types
+import spacy
 from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 
@@ -17,19 +17,22 @@ from mcp.server.models import InitializationOptions
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("french-b2-simplifier")
 
-import spacy
 nlp = spacy.load("fr_core_news_sm")
 
 
-def load_b2_vocabulary(vocab_file: str = "words.txt") -> set:
-    """Load the B2 vocabulary list from txt file and lemmatize all words"""
+def load_b2_vocabulary(vocab_file: str = "words.txt") -> tuple[set, dict]:
+    """Load the B2 vocabulary list from txt file and lemmatize all words
+    Returns: (vocabulary_set, word_position_dict)
+    """
     try:
         with open(vocab_file, "r", encoding="utf-8") as f:
-            raw_words = {line.strip().lower() for line in f if line.strip()}
+            raw_words = [line.strip().lower() for line in f if line.strip()]
 
         # Lemmatize all vocabulary words for consistent comparison
         lemmatized_vocab = set()
-        for word in raw_words:
+        word_positions = {}  # Maps lemmatized word to its position in the file
+
+        for position, word in enumerate(raw_words):
             doc = nlp(word)
             if doc:
                 lemma = doc[0].lemma_.lower()
@@ -37,17 +40,21 @@ def load_b2_vocabulary(vocab_file: str = "words.txt") -> set:
                 # Also keep the original word in case lemmatization changes it unexpectedly
                 lemmatized_vocab.add(word)
 
-        return lemmatized_vocab
+                # Store position for both lemma and original word
+                word_positions[lemma] = position
+                word_positions[word] = position
+
+        return lemmatized_vocab, word_positions
     except FileNotFoundError:
         logger.warning(f"Vocabulary file {vocab_file} not found.")
-        return set()
+        return set(), {}
 
 
 class FrenchB2Simplifier:
     """French B2 Simplifier Assistant"""
 
     def __init__(self):
-        self.b2_vocab = load_b2_vocabulary()
+        self.b2_vocab, self.word_positions = load_b2_vocabulary()
 
     def get_lemmatized_words(self, text: str) -> set:
         """Extract lemmatized words from text, excluding stop words"""
@@ -79,10 +86,12 @@ class FrenchB2Simplifier:
                     violations.add(original_word)
 
         return {
-            'is_valid': len(violations) == 0,
-            'violations': list(violations),
-            'total_unique_words': len(all_words),
-            'coverage': (len(all_words) - len(violations)) / len(all_words) * 100 if all_words else 0
+            "is_valid": len(violations) == 0,
+            "violations": list(violations),
+            "total_unique_words": len(all_words),
+            "coverage": (len(all_words) - len(violations)) / len(all_words) * 100
+            if all_words
+            else 0,
         }
 
     def create_validation_report(self, french_text: str) -> str:
@@ -92,24 +101,24 @@ class FrenchB2Simplifier:
         report = f"""# B2 Vocabulary Validation Report
 
 ## Text Analysis
-- **Total unique words:** {validation['total_unique_words']}
-- **B2 vocabulary coverage:** {validation['coverage']:.1f}%
-- **Validation status:** {'PASSED' if validation['is_valid'] else 'FAILED'}
+- **Total unique words:** {validation["total_unique_words"]}
+- **B2 vocabulary coverage:** {validation["coverage"]:.1f}%
+- **Validation status:** {"PASSED" if validation["is_valid"] else "FAILED"}
 
 ## Text Analyzed
 {french_text}
 
 """
 
-        if validation['violations']:
-            report += f"""## Vocabulary Violations ({len(validation['violations'])} words)
+        if validation["violations"]:
+            report += f"""## Vocabulary Violations ({len(validation["violations"])} words)
 The following words are NOT in the B2 vocabulary list:
 
 """
-            for word in sorted(validation['violations']):
+            for word in sorted(validation["violations"]):
                 report += f"- **{word}**\n"
 
-            report += f"""
+            report += """
 ## Recommendations
 1. Replace the violated words with simpler B2 alternatives
 2. Use the simplifier tool to get a B2-compliant version
@@ -157,7 +166,43 @@ Students at B2 level should master:
 
 Gérondif (gerund) for simultaneous actions"""
 
-    def simplify_to_b2(self, text: str) -> str:
+    def get_highlighted_text(self, text: str, start_highlight_from: int = 3000) -> str:
+        """
+        Return text with words highlighted based on their frequency position
+        Words from start_highlight_from to 5000 are highlighted with **bold**
+        """
+        doc = nlp(text)
+        result = ""
+
+        for token in doc:
+            # Add any whitespace before the token
+            if token.i > 0:
+                # Get the space between previous token and current token
+                prev_token = doc[token.i - 1]
+                space_between = text[prev_token.idx + len(prev_token.text) : token.idx]
+                result += space_between
+
+            token_text = token.text
+
+            if token.is_alpha and not token.is_stop:
+                lemma = token.lemma_.lower()
+                original_word = token.text.lower()
+
+                # Check if word should be highlighted based on position
+                position = self.word_positions.get(lemma) or self.word_positions.get(
+                    original_word
+                )
+
+                if position is not None and start_highlight_from <= position < 5000:
+                    result += f"**{token_text}**"
+                else:
+                    result += token_text
+            else:
+                result += token_text
+
+        return result
+
+    def simplify_to_b2(self, text: str, start_highlight_from: int = 3000) -> str:
         """
         Main function to simplify text to B2 level with comprehensive analysis
         Returns properly formatted Markdown output with word replacements and grammar requirements
@@ -165,19 +210,21 @@ Gérondif (gerund) for simultaneous actions"""
         # First, validate the original text
         validation = self.validate_vocabulary(text)
 
+        # Get highlighted text
+        highlighted_text = self.get_highlighted_text(text, start_highlight_from)
+
         # Build comprehensive Markdown response
         response = f"""# French B2 Text Simplification Report
 
-## Original Text
-```
-{text}
-```
+## Original Text with Highlighted Difficult Words
+{highlighted_text}
 
 ## Analysis Summary
-- **B2 Vocabulary Status:** {'COMPLIANT' if validation['is_valid'] else 'NEEDS SIMPLIFICATION'}
-- **Total unique words:** {validation['total_unique_words']}
-- **B2 vocabulary coverage:** {validation['coverage']:.1f}%
-- **Words requiring replacement:** {len(validation['violations']) if validation['violations'] else 0}
+- **B2 Vocabulary Status:** {"COMPLIANT" if validation["is_valid"] else "NEEDS SIMPLIFICATION"}
+- **Total unique words:** {validation["total_unique_words"]}
+- **B2 vocabulary coverage:** {validation["coverage"]:.1f}%
+- **Words requiring replacement:** {len(validation["violations"]) if validation["violations"] else 0}
+- **Highlighting range:** Words from position {start_highlight_from} to 5000 are **highlighted**
 
 ## Vocabulary Compliance Check
 
@@ -186,13 +233,13 @@ All analyzed words are checked against a vocabulary of {len(self.b2_vocab)} appr
 
 ### Words Requiring Replacement"""
 
-        if validation['violations']:
+        if validation["violations"]:
             response += f"""
 
-The following **{len(validation['violations'])} words** need to be replaced with B2 alternatives:
+The following **{len(validation["violations"])} words** need to be replaced with B2 alternatives:
 
 """
-            for word in sorted(validation['violations']):
+            for word in sorted(validation["violations"]):
                 response += f"- `{word}` → [find B2 equivalent]\n"
         else:
             response += """
@@ -229,10 +276,9 @@ The following **{len(validation['violations'])} words** need to be replaced with
 
 **Required output format:**
 1. Provide the simplified French text in Markdown format
-2. Highlight words that were replaced with B2 alternatives
-3. Add delimiter `---`
-5. List any word replacements made (original → replacement)
-6. Note any B2-level grammar structures in the output text
+2. Add delimiter `---`
+3. List any word replacements made (original → replacement)
+4. Note any B2-level grammar structures in the output text
 
 ---
 
@@ -254,14 +300,21 @@ async def handle_list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="simplify_to_french_b2",
-            description="Analyze and provide B2 simplification guidance for French text. Returns Markdown-formatted report with vocabulary compliance check, word replacement suggestions, and B2 grammar requirements.",
+            description="Analyze and provide B2 simplification guidance for French text. Returns Markdown-formatted report with vocabulary compliance check, word replacement suggestions, and B2 grammar requirements. Highlights words based on frequency position.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "text": {
                         "type": "string",
                         "description": "French text to analyze and generate B2 simplification guidance for",
-                    }
+                    },
+                    "start_highlight_from": {
+                        "type": "integer",
+                        "description": "Position in vocabulary list to start highlighting from (0-5000). Words from this position to 5000 will be highlighted as potentially difficult. Default is 3000.",
+                        "minimum": 0,
+                        "maximum": 5000,
+                        "default": 3000,
+                    },
                 },
                 "required": ["text"],
             },
@@ -277,6 +330,7 @@ async def handle_call_tool(
 
     if name == "simplify_to_french_b2":
         text = arguments.get("text", "")
+        start_highlight_from = arguments.get("start_highlight_from", 3000)
 
         if not text.strip():
             return [
@@ -284,7 +338,7 @@ async def handle_call_tool(
             ]
 
         # Generate comprehensive B2 analysis with Markdown output
-        response = simplifier.simplify_to_b2(text)
+        response = simplifier.simplify_to_b2(text, start_highlight_from)
 
         return [types.TextContent(type="text", text=response)]
 
